@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="__LANG__" data-theme="__THEME__" data-contrast="__CONTRAST__">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="theme-color" content="#245C46" />
+  <link rel="manifest" href="/manifest.webmanifest" />
+  <link rel="icon" href="/icon.svg" type="image/svg+xml" />
+  <title>LocalDeck</title>
+  <link rel="stylesheet" href="/static/styles.css?v=__ASSET_V__" />
+  <!--__MOBILE_META__-->
+</head>
+<body class="mobile-body">
+  <header class="mobile-bar">
+    <nav class="mobile-pages" id="mobilePages"></nav>
+    <div class="mobile-meta">
+      <span class="pill-badge">
+        <span class="status-dot" id="mobileStatusDot"></span>
+        <span id="mobileStatusText">...</span>
+      </span>
+      <button type="button" class="btn btn-sm" id="mobileMixerBtn" aria-label="Mixer">🎚</button>
+      <button type="button" class="btn btn-sm" id="wakeLockBtn">☀</button>
+      <button type="button" class="btn btn-sm" id="fullscreenBtn">⛶</button>
+    </div>
+  </header>
+  <div class="audio-viz mobile-audio-viz" id="mobileAudioViz" aria-hidden="true"></div>
+  <main class="mobile-grid" id="mobileGrid"></main>
+
+  <div class="mixer-drawer" id="mobileMixerDrawer" aria-hidden="true">
+    <div class="mixer-sheet">
+      <div class="card-header">
+        <h2 style="margin:0;font-size:16px" id="mobileMixerTitle"></h2>
+        <div style="display:flex;gap:6px">
+          <button type="button" class="btn btn-sm" id="mobileMixerRefreshBtn"></button>
+          <button type="button" class="btn btn-sm" id="mobileMixerCloseBtn"></button>
+        </div>
+      </div>
+      <div class="mixer-list" id="mobileMixerList"></div>
+    </div>
+  </div>
+
+  <script src="/static/i18n.js?v=__ASSET_V__"></script>
+  <script src="/static/icons.js?v=__ASSET_V__"></script>
+  <script src="/static/audio_viz.js?v=__ASSET_V__"></script>
+  <script src="/static/mobile.js?v=__ASSET_V__"></script>
+</body>
+</html>

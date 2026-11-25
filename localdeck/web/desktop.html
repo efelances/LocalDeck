@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="__LANG__" data-theme="__THEME__" data-contrast="__CONTRAST__">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>LocalDeck</title>
+  <link rel="icon" href="/icon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="/static/styles.css?v=__ASSET_V__" />
+  <!--__DESKTOP_TOKEN__-->
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <img src="/icon.svg" class="brand-logo" alt="" aria-hidden="true" />
+      <span>LocalDeck</span>
+    </div>
+    <div class="topbar-meta">
+      <span class="pill-badge" id="lanBadge">127.0.0.1</span>
+      <span class="pill-badge">
+        <span class="status-dot" id="connDot"></span>
+        <span id="connCount">0</span>
+      </span>
+      <button type="button" class="toggle-btn" id="openMixerBtn" data-i18n="mixerTitle"></button>
+      <button type="button" class="toggle-btn" id="autoSwitchToggle"></button>
+      <button type="button" class="toggle-btn" id="autostartToggle"></button>
+      <button type="button" class="toggle-btn" id="themeToggle"></button>
+      <button type="button" class="toggle-btn" id="contrastToggle"></button>
+      <div class="lang-group" id="langGroup"></div>
+    </div>
+  </header>
+
+  <main class="desktop-shell">
+    <aside class="panel-left">
+      <section class="card">
+        <div class="card-header">
+          <h2 class="card-title" data-i18n="pages"></h2>
+          <div style="display:flex;gap:5px">
+            <button type="button" class="btn btn-sm btn-accent" id="openTemplatesBtn" data-i18n="addFromTemplate"></button>
+            <button type="button" class="btn btn-sm" id="newPageBtn" data-i18n="newPage"></button>
+          </div>
+        </div>
+        <div class="page-list" id="pageList"></div>
+      </section>
+
+      <section class="card">
+        <div class="card-header">
+          <h2 class="card-title" data-i18n="foregroundApp"></h2>
+        </div>
+        <div class="fg-box">
+          <span class="fg-exe" id="fgExe">—</span>
+          <span class="hint-text" id="fgTitle"></span>
+          <button type="button" class="btn btn-sm" id="bindExeBtn" data-i18n="addExeToPage" style="display:none"></button>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="card-header">
+          <h2 class="card-title" data-i18n="qrPairing"></h2>
+          <button type="button" class="btn btn-sm" id="refreshQrBtn" data-i18n="refreshQr"></button>
+        </div>
+        <div class="qr-box" id="qrBox"></div>
+        <div class="hint-text" id="qrMeta" style="text-align:center"></div>
+        <button type="button" class="btn btn-sm" id="copyQrUrlBtn" data-i18n="copyLink"></button>
+      </section>
+
+      <section class="card">
+        <div class="card-header">
+          <h2 class="card-title" data-i18n="pairedDevices"></h2>
+        </div>
+        <div id="deviceList" style="display:flex;flex-direction:column;gap:6px"></div>
+      </section>
+    </aside>
+
+    <section class="panel-center">
+      <div class="stage-toolbar">
+        <div class="stage-title-wrap">
+          <h1 class="stage-title" id="stagePageTitle"></h1>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+          <select class="select" id="gridDimensionSelect" style="width:auto"></select>
+          <button type="button" class="btn btn-sm" id="togglePageSettingsBtn" data-i18n="pageSettings"></button>
+        </div>
+      </div>
+
+      <section class="card" id="pageSettingsCard" style="display:none;max-width:790px;width:100%;margin:0 auto">
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px">
+          <div class="field">
+            <label data-i18n="pageName"></label>
+            <input class="input" id="pageNameInput" maxlength="40" />
+          </div>
+          <div class="field">
+            <label data-i18n="pageSkin"></label>
+            <select class="select" id="pageSkinSelect"></select>
+          </div>
+          <div class="field">
+            <label data-i18n="autoSwitchRules"></label>
+            <input class="input" id="pageExeInput" placeholder="code.exe, chrome.exe" />
+            <span class="hint-text" data-i18n="autoSwitchHelp"></span>
+          </div>
+        </div>
+        <label class="toggle-check">
+          <input type="checkbox" id="audioVizEnabledCheck" />
+          <span data-i18n="audioVizEnable"></span>
+        </label>
+        <div id="audioSettingsRow" style="display:none;grid-template-columns:1fr 1fr;gap:10px">
+          <div class="field">
+            <label data-i18n="audioSource"></label>
+            <div style="display:flex;gap:6px">
+              <select class="select" id="audioSourceSelect"></select>
+              <button type="button" class="btn btn-sm" id="refreshAudioSourcesBtn" data-i18n="refreshSources"></button>
+            </div>
+          </div>
+          <div class="field">
+            <label data-i18n="audioVizMode"></label>
+            <select class="select" id="audioVizModeSelect"></select>
+          </div>
+        </div>
+        <div class="row-actions">
+          <button type="button" class="btn btn-accent btn-sm" id="savePageSettingsBtn" data-i18n="savePage"></button>
+          <button type="button" class="btn btn-sm" id="exportPageBtn" data-i18n="exportJson"></button>
+          <button type="button" class="btn btn-sm" id="importPageBtn" data-i18n="importJson"></button>
+          <input type="file" id="importFileInput" accept=".json,application/json" style="display:none" />
+          <button type="button" class="btn btn-sm" id="deletePageBtn" data-i18n="deletePage"></button>
+        </div>
+      </section>
+
+      <div class="deck-stage-frame" id="deckStageFrame" data-skin="default">
+        <div class="audio-viz" id="desktopAudioViz" aria-hidden="true"></div>
+        <div class="deck-grid" id="deckGrid"></div>
+      </div>
+      <p class="hint-text" style="text-align:center;margin:0" data-i18n="dragHint"></p>
+    </section>
+
+    <aside class="panel-right">
+      <div class="card-header">
+        <h2 class="card-title" data-i18n="buttonEditor"></h2>
+        <span class="hint-text" id="saveStatus"></span>
+      </div>
+      <p class="hint-text" id="emptyInspectorHint" data-i18n="selectCellHint"></p>
+      <form id="inspectorForm" style="display:none;flex-direction:column;gap:12px">
+        <div class="field">
+          <label data-i18n="labelField"></label>
+          <input class="input" id="btnLabelInput" maxlength="32" />
+        </div>
+        <div class="field">
+          <label data-i18n="iconField"></label>
+          <div class="icon-picker" id="iconPicker"></div>
+        </div>
+        <div class="field">
+          <label data-i18n="toneField"></label>
+          <div class="tone-row" id="toneRow"></div>
+        </div>
+        <div class="field">
+          <label data-i18n="sizeField"></label>
+          <select class="select" id="btnSizeSelect"></select>
+        </div>
+        <div class="field">
+          <label data-i18n="actionTypeField"></label>
+          <select class="select" id="actionTypeSelect"></select>
+        </div>
+
+        <div id="keysSection" class="field" style="display:none">
+          <label data-i18n="keysField"></label>
+          <div class="key-chips" id="keyChips"></div>
+          <div class="row-actions">
+            <button type="button" class="btn btn-sm" id="recordKeysBtn" data-i18n="recordKeys"></button>
+            <button type="button" class="btn btn-sm" id="clearKeysBtn" data-i18n="clearKeys"></button>
+          </div>
+          <div class="key-recorder" id="keyRecorderBox" style="display:none" data-i18n="recordingKeys"></div>
+        </div>
+
+        <div id="mediaSection" class="field" style="display:none">
+          <label data-i18n="mediaActionField"></label>
+          <select class="select" id="mediaActionSelect"></select>
+        </div>
+
+        <div id="urlSection" class="field" style="display:none">
+          <label data-i18n="urlField"></label>
+          <input class="input" id="urlInput" placeholder="https://example.com" />
+        </div>
+
+        <div id="switchPageSection" class="field" style="display:none">
+          <label data-i18n="targetPageField"></label>
+          <select class="select" id="targetPageSelect"></select>
+        </div>
+
+        <div id="soundSection" class="field" style="display:none">
+          <label data-i18n="soundFileField"></label>
+          <div style="display:flex;gap:6px">
+            <select class="select" id="soundFileSelect"></select>
+            <button type="button" class="btn btn-sm" id="uploadSoundBtn" data-i18n="uploadSound"></button>
+            <input type="file" id="soundUploadInput" accept=".wav,.mp3,audio/wav,audio/mpeg" style="display:none" />
+          </div>
+        </div>
+
+        <div id="launchAppSection" class="field" style="display:none">
+          <label data-i18n="appPathField"></label>
+          <select class="select" id="detectedAppSelect"></select>
+          <input class="input" id="appPathInput" placeholder="C:\Program Files\...\App.exe" />
+        </div>
+
+        <div id="obsSection" class="field" style="display:none">
+          <div style="display:grid;grid-template-columns:90px 1fr;gap:6px">
+            <div class="field">
+              <label data-i18n="obsPortField"></label>
+              <input class="input" id="obsPortInput" type="number" min="1024" max="65535" />
+            </div>
+            <div class="field">
+              <label data-i18n="obsPasswordField"></label>
+              <input class="input" id="obsPasswordInput" type="password" />
+            </div>
+          </div>
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+            <button type="button" class="btn btn-sm" id="fetchObsBtn" data-i18n="fetchObsScenes"></button>
+            <span class="hint-text" id="obsStatusText"></span>
+          </div>
+          <div class="field">
+            <label data-i18n="obsCommandField"></label>
+            <select class="select" id="obsCommandSelect"></select>
+          </div>
+          <div class="field" id="obsSceneWrap" style="display:none">
+            <label data-i18n="obsSceneField"></label>
+            <input class="input" id="obsSceneInput" list="obsSceneList" />
+            <datalist id="obsSceneList"></datalist>
+          </div>
+          <div class="field" id="obsInputWrap" style="display:none">
+            <label data-i18n="obsInputField"></label>
+            <input class="input" id="obsInputName" list="obsInputList" />
+            <datalist id="obsInputList"></datalist>
+          </div>
+        </div>
+
+        <div id="widgetSection" class="field" style="display:none">
+          <label data-i18n="widgetKindField"></label>
+          <select class="select" id="widgetKindSelect"></select>
+        </div>
+
+        <div id="macroSection" class="field" style="display:none">
+          <label data-i18n="macroSteps"></label>
+          <div class="macro-list" id="macroList"></div>
+          <div class="row-actions">
+            <button type="button" class="btn btn-sm" id="addMacroHotkeyBtn" data-i18n="addMacroHotkey"></button>
+            <button type="button" class="btn btn-sm" id="addMacroDelayBtn" data-i18n="addMacroDelay"></button>
+          </div>
+        </div>
+
+        <div class="row-actions" style="margin-top:4px">
+          <button type="submit" class="btn btn-accent" data-i18n="saveButton"></button>
+          <button type="button" class="btn" id="testButtonBtn" data-i18n="testButton"></button>
+          <button type="button" class="btn" id="deleteButtonBtn" data-i18n="deleteButton"></button>
+        </div>
+      </form>
+    </aside>
+  </main>
+
+  <div class="modal-backdrop" id="templateModal">
+    <div class="modal-card">
+      <div class="card-header">
+        <div>
+          <h2 style="margin:0;font-size:17px" data-i18n="templateGalleryTitle"></h2>
+          <p class="hint-text" style="margin:4px 0 0" data-i18n="templateGalleryDesc"></p>
+        </div>
+        <button type="button" class="btn btn-sm" id="closeTemplatesBtn" data-i18n="closeModal"></button>
+      </div>
+      <div class="template-grid" id="templateGrid"></div>
+    </div>
+  </div>
+
+  <div class="modal-backdrop" id="mixerModal">
+    <div class="modal-card" style="max-width:480px">
+      <div class="card-header">
+        <h2 style="margin:0;font-size:17px" data-i18n="mixerTitle"></h2>
+        <div style="display:flex;gap:6px">
+          <button type="button" class="btn btn-sm" id="refreshDesktopMixerBtn" data-i18n="mixerRefresh"></button>
+          <button type="button" class="btn btn-sm" id="closeMixerModalBtn" data-i18n="closeModal"></button>
+        </div>
+      </div>
+      <div class="mixer-list" id="desktopMixerList"></div>
+    </div>
+  </div>
+
+  <script src="/static/i18n.js?v=__ASSET_V__"></script>
+  <script src="/static/icons.js?v=__ASSET_V__"></script>
+  <script src="/static/audio_viz.js?v=__ASSET_V__"></script>
+  <script src="/static/desktop.js?v=__ASSET_V__"></script>
+</body>
+</html>

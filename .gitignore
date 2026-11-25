@@ -7,3 +7,16 @@ build/
 dist/
 release/
 .agents/
+*.spec
+*.log
+.env
+.env.*
+deck.json
+deck.json.tmp
+sessions.json
+runtime.json
+sounds/
+.vscode/
+.idea/
+Thumbs.db
+desktop.ini

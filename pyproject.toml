@@ -16,6 +16,8 @@ dependencies = [
     "pywin32>=306; sys_platform == 'win32'",
     "qrcode>=8.0",
     "pillow>=10.4.0",
+    "pystray>=0.19.5",
+    "websockets>=12.0",
 ]
 
 [project.optional-dependencies]
@@ -30,6 +32,9 @@ localdeck = "localdeck.__main__:main"
 
 [tool.setuptools.packages.find]
 include = ["localdeck*"]
+
+[tool.setuptools.package-data]
+localdeck = ["web/*.html", "web/static/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
