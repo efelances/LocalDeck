@@ -525,3 +525,18 @@ def test_windows_audio_mixer_backend_reads():
     assert 0.0 <= state["master"]["volume"] <= 1.0
     assert isinstance(state["master"]["muted"], bool)
     assert isinstance(state["apps"], list)
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="Windows-only Mark-of-the-Web ADS test")
+def test_win_unblock_removes_zone_identifier(tmp_path: Path):
+    from localdeck.core.win_unblock import unblock_downloaded_binaries
+
+    dll = tmp_path / "Python.Runtime.dll"
+    dll.write_bytes(b"MZ")
+    ads = f"{dll}:Zone.Identifier"
+    with open(ads, "w", encoding="utf-8") as fh:
+        fh.write("[ZoneTransfer]\r\nZoneId=3\r\n")
+
+    assert unblock_downloaded_binaries(tmp_path) == 1
+    with pytest.raises(FileNotFoundError):
+        open(ads, "r", encoding="utf-8")

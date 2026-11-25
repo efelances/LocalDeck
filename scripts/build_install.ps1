@@ -48,6 +48,16 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 $BuiltAppDir = Join-Path $DistDir "LocalDeck"
+$DotNetConfig = @'
+<?xml version="1.0" encoding="utf-8"?>
+<configuration>
+  <runtime>
+    <loadFromRemoteSources enabled="true" />
+  </runtime>
+</configuration>
+'@
+[System.IO.File]::WriteAllText((Join-Path $BuiltAppDir "LocalDeck.exe.config"), $DotNetConfig, [System.Text.UTF8Encoding]::new($false))
+
 $InstallDir = Join-Path $env:LOCALAPPDATA "LocalDeck\app"
 
 if (Test-Path $InstallDir) {
