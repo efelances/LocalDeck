@@ -21,6 +21,15 @@
   const $ = (id) => document.getElementById(id);
   const audioViz = window.LocalDeckAudioViz.create($("desktopAudioViz"));
 
+  function escapeHtml(value) {
+    return String(value ?? "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+  }
+
   const KEY_CODE_MAP = {
     ControlLeft: "ctrl",
     ControlRight: "rctrl",
@@ -231,7 +240,7 @@
 
   function buildDesktopWidgetHtml(btn, l) {
     const kind = btn.action?.widget_kind || "clock";
-    const lbl = resolveLocalized(btn, "label", l) || t(l, `widget_${kind}`);
+    const lbl = escapeHtml(resolveLocalized(btn, "label", l) || t(l, `widget_${kind}`));
     const sys = liveState.system || {};
     const ets2 = liveState.ets2 || {};
     if (kind === "clock") {
@@ -258,9 +267,9 @@
     }
     if (kind === "ets2_speed") {
       const val = ets2.connected ? `${ets2.speed_kmh || 0}` : "—";
-      const sub = ets2.connected
+      const sub = escapeHtml(ets2.connected
         ? `km/h · ${ets2.gear || "N"}${ets2.cruise_kmh ? ` · CC ${ets2.cruise_kmh}` : ""}${ets2.park_brake ? " · (P)" : ""}`
-        : t(l, "ets2Offline");
+        : t(l, "ets2Offline"));
       return `
         <div class="widget-tile" data-widget-kind="ets2_speed">
           <div class="widget-kicker">${lbl}</div>
@@ -270,7 +279,7 @@
       `;
     }
     const fuel = ets2.connected ? `${ets2.fuel_pct || 0}%` : "—";
-    const rpmSub = ets2.connected ? `${ets2.rpm || 0} RPM` : t(l, "ets2Offline");
+    const rpmSub = escapeHtml(ets2.connected ? `${ets2.rpm || 0} RPM` : t(l, "ets2Offline"));
     return `
       <div class="widget-tile" data-widget-kind="ets2_fuel">
         <div class="widget-kicker">${lbl}</div>
@@ -484,14 +493,18 @@
           const src = dragSource;
           dragSource = null;
           if (src.row === r && src.col === c) return;
-          state = await api("POST", `/api/desktop/pages/${page.id}/swap`, {
-            from_row: src.row,
-            from_col: src.col,
-            to_row: r,
-            to_col: c,
-          });
-          selectedCell = { row: r, col: c, buttonId: btnAtAfter(r, c) };
-          renderAll();
+          try {
+            state = await api("POST", `/api/desktop/pages/${page.id}/swap`, {
+              from_row: src.row,
+              from_col: src.col,
+              to_row: r,
+              to_col: c,
+            });
+            selectedCell = { row: r, col: c, buttonId: btnAtAfter(r, c) };
+            renderAll();
+          } catch (err) {
+            showSavedToast(err.message);
+          }
         });
 
         grid.appendChild(cell);
@@ -725,37 +738,42 @@
       actSelect.appendChild(opt);
     });
 
+    const mediaSelect = $("mediaActionSelect");
+    const prevMedia = mediaSelect.value;
     const widgetSelect = $("widgetKindSelect");
+    const prevWidget = widgetSelect.value;
+    const targetSelect = $("targetPageSelect");
+    const prevTarget = targetSelect.value;
+    const obsCmdSelect = $("obsCommandSelect");
+    const prevObsCmd = obsCmdSelect.value;
+
     widgetSelect.innerHTML = "";
     ["clock", "cpu_ram", "ets2_speed", "ets2_fuel"].forEach((wk) => {
       const opt = document.createElement("option");
       opt.value = wk;
       opt.textContent = t(l, `widget_${wk}`);
-      opt.selected = actionOverride ? (actionOverride.widget_kind || "clock") === wk : widgetSelect.value === wk;
+      opt.selected = actionOverride ? (actionOverride.widget_kind || "clock") === wk : prevWidget === wk;
       widgetSelect.appendChild(opt);
     });
 
-    const mediaSelect = $("mediaActionSelect");
     mediaSelect.innerHTML = "";
     (state.media_actions || []).forEach((m) => {
       const opt = document.createElement("option");
       opt.value = m;
       opt.textContent = t(l, `media_${m}`);
-      opt.selected = actionOverride ? actionOverride.media_action === m : mediaSelect.value === m;
+      opt.selected = actionOverride ? actionOverride.media_action === m : prevMedia === m;
       mediaSelect.appendChild(opt);
     });
 
-    const targetSelect = $("targetPageSelect");
     targetSelect.innerHTML = "";
     state.config.pages.forEach((p) => {
       const opt = document.createElement("option");
       opt.value = p.id;
       opt.textContent = resolveLocalized(p, "name", l);
-      if (actionOverride && actionOverride.target_page_id === p.id) opt.selected = true;
+      if (actionOverride ? actionOverride.target_page_id === p.id : prevTarget === p.id) opt.selected = true;
       targetSelect.appendChild(opt);
     });
 
-    const obsCmdSelect = $("obsCommandSelect");
     obsCmdSelect.innerHTML = "";
     [
       "switch_scene",
@@ -768,7 +786,7 @@
       const opt = document.createElement("option");
       opt.value = cmd;
       opt.textContent = t(l, `obs_${cmd}`);
-      opt.selected = actionOverride ? actionOverride.obs_command === cmd : obsCmdSelect.value === cmd;
+      opt.selected = actionOverride ? actionOverride.obs_command === cmd : prevObsCmd === cmd;
       obsCmdSelect.appendChild(opt);
     });
 
@@ -1188,6 +1206,7 @@
       renderAll();
     };
 
+    $("btnSizeSelect").onchange = (e) => { selectedSize = e.target.value || "1x1"; };
     $("actionTypeSelect").onchange = () => renderInspectorPickers();
     $("obsCommandSelect").onchange = () => updateObsVisibility();
     $("fetchObsBtn").onclick = () => fetchObsResources(true);

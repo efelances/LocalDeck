@@ -97,8 +97,7 @@ class AuthManager:
 
     def create_pairing_token(self, ttl_seconds: int = 300) -> PairingToken:
         with self._lock:
-            for existing in self._pairing_tokens.values():
-                existing.used = True
+            self._pairing_tokens.clear()
             token_value = secrets.token_urlsafe(24)
             pt = PairingToken(token=token_value, expires_at=time.time() + ttl_seconds, used=False)
             self._pairing_tokens[token_value] = pt

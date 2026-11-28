@@ -113,7 +113,7 @@ class LiveStateWatcher:
                     self._force_obs_refresh = False
                     port, password = self._get_obs_settings()
                     last_obs = self._obs_backend.fetch_status(port=port, password=password)
-                    self._next_obs_poll = now + (0.0 if last_obs.get("connected") else 5.0)
+                    self._next_obs_poll = now + (2.5 if last_obs.get("connected") else 5.0)
                 obs_data = last_obs
             else:
                 obs_data = _default_obs_status()

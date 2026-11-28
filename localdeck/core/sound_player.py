@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import ctypes
 import os
+import queue
 import re
 import secrets
 import sys
@@ -94,6 +95,37 @@ class WindowsSoundPlayer(SoundPlayer):
 
     def __init__(self) -> None:
         self._lock = threading.Lock()
+        self._mci_queue: queue.Queue[tuple[Path, threading.Event, list[Exception | None]]] | None = None
+        self._mci_thread: threading.Thread | None = None
+
+    def _ensure_mci_worker(self) -> queue.Queue[tuple[Path, threading.Event, list[Exception | None]]]:
+        with self._lock:
+            if self._mci_queue is None or self._mci_thread is None or not self._mci_thread.is_alive():
+                q: queue.Queue[tuple[Path, threading.Event, list[Exception | None]]] = queue.Queue()
+
+                def _worker() -> None:
+                    winmm = ctypes.windll.winmm
+                    alias = "localdeck_sfx"
+                    while True:
+                        clip_path, done, err_box = q.get()
+                        try:
+                            winmm.mciSendStringW(f"close {alias}", None, 0, None)
+                            escaped = str(clip_path).replace('"', "")
+                            rc = winmm.mciSendStringW(
+                                f'open "{escaped}" type mpegvideo alias {alias}', None, 0, None
+                            )
+                            if rc != 0:
+                                raise RuntimeError(f"Failed to open MP3 (MCI error {rc})")
+                            winmm.mciSendStringW(f"play {alias} from 0", None, 0, None)
+                        except Exception as exc:
+                            err_box.append(exc)
+                        finally:
+                            done.set()
+
+                self._mci_queue = q
+                self._mci_thread = threading.Thread(target=_worker, name="LocalDeckSoundMci", daemon=True)
+                self._mci_thread.start()
+            return self._mci_queue
 
     def play(self, path: Path) -> None:
         ext = path.suffix.lower()
@@ -103,15 +135,13 @@ class WindowsSoundPlayer(SoundPlayer):
             winsound.PlaySound(str(path), winsound.SND_FILENAME | winsound.SND_ASYNC)
             return
         if ext == ".mp3":
-            with self._lock:
-                winmm = ctypes.windll.winmm
-                alias = "localdeck_sfx"
-                winmm.mciSendStringW(f"close {alias}", None, 0, None)
-                escaped = str(path).replace('"', "")
-                rc = winmm.mciSendStringW(f'open "{escaped}" type mpegvideo alias {alias}', None, 0, None)
-                if rc != 0:
-                    raise RuntimeError(f"Failed to open MP3 (MCI error {rc})")
-                winmm.mciSendStringW(f"play {alias} from 0", None, 0, None)
+            q = self._ensure_mci_worker()
+            done = threading.Event()
+            err_box: list[Exception | None] = []
+            q.put((path, done, err_box))
+            done.wait(timeout=3.0)
+            if err_box and err_box[0] is not None:
+                raise err_box[0]
             return
         raise ValueError(f"Unsupported audio format: {ext}")
 

@@ -567,3 +567,41 @@ def test_host_header_and_origin_guards(tmp_path: Path):
                 assert False, "Expected WebSocketDisconnect"
         except WebSocketDisconnect as exc:
             assert exc.code == 4403
+
+
+def test_import_strips_launch_app_and_dynamic_lan_ip(tmp_path: Path, monkeypatch):
+    monkeypatch.setattr("localdeck.server.get_lan_ip", lambda: "192.168.55.77")
+    app = create_app(
+        data_dir=tmp_path,
+        input_backend=NoopInputBackend(),
+        enable_window_watcher=False,
+        enable_audio_meter=False,
+        enable_live_state=False,
+        host_ip=None,
+        port=8765,
+    )
+    token = app.state.ctx.auth_manager.desktop_token
+    headers = {"X-LocalDeck-Desktop-Token": token}
+
+    with TestClient(app) as client:
+        st = client.get("/api/desktop/state", headers=headers)
+        assert st.status_code == 200
+        assert st.json()["lan_url"] == "http://192.168.55.77:8765"
+
+        imported_page = {
+            "id": "shared-deck",
+            "name": "Shared",
+            "buttons": [
+                {
+                    "id": "b-app",
+                    "row": 0,
+                    "col": 0,
+                    "label": "App",
+                    "action": {"type": "launch_app", "app_path": r"C:\Fake\EvilApp.lnk"},
+                }
+            ],
+        }
+        imp = client.post("/api/desktop/pages/import", headers=headers, json=imported_page)
+        assert imp.status_code == 200
+        shared = next(p for p in imp.json()["config"]["pages"] if p["id"] == "shared-deck")
+        assert shared["buttons"][0]["action"]["app_path"] is None

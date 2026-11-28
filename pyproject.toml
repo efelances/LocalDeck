@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "localdeck"
-version = "0.1.1"
+version = "0.1.2"
 description = "Turn any phone or tablet on local Wi-Fi into a zero-latency wireless Stream Deck and game cockpit without installing mobile apps or accounts."
 license = { text = "MIT" }
 requires-python = ">=3.10"

@@ -144,7 +144,7 @@ class AppContext:
         on_focus_window: Callable[[], None] | None,
         set_autostart_fn: Callable[[bool], bool],
         get_autostart_fn: Callable[[], bool],
-        host_ip: str,
+        host_ip: str | None,
         port: int,
     ) -> None:
         self.data_dir = data_dir
@@ -167,7 +167,7 @@ class AppContext:
         )
         self.executor.set_switch_page_callback(self._handle_switch_page_sync)
         self.audio_backend = audio_backend
-        self.host_ip = host_ip
+        self._fixed_host_ip = host_ip
         self.port = port
         self.loop: asyncio.AbstractEventLoop | None = None
         self.window_watcher: WindowWatcher | None = None
@@ -182,7 +182,8 @@ class AppContext:
         self.on_focus_window = on_focus_window
 
     def lan_base_url(self) -> str:
-        return f"http://{self.host_ip}:{self.port}"
+        ip = self._fixed_host_ip or get_lan_ip()
+        return f"http://{ip}:{self.port}"
 
     def pairing_payload(self, force_refresh: bool = False) -> dict[str, Any]:
         pt = (
@@ -393,7 +394,6 @@ def create_app(
     resolved_ets2 = ets2_telemetry_reader or Ets2TelemetryReader()
     resolved_set_autostart = set_autostart_fn or set_autostart
     resolved_get_autostart = get_autostart_fn or is_autostart_enabled
-    resolved_ip = host_ip or get_lan_ip()
 
     ctx = AppContext(
         data_dir=resolved_data,
@@ -407,7 +407,7 @@ def create_app(
         on_focus_window=on_focus_window,
         set_autostart_fn=resolved_set_autostart,
         get_autostart_fn=resolved_get_autostart,
-        host_ip=resolved_ip,
+        host_ip=host_ip,
         port=port,
     )
 
@@ -488,6 +488,7 @@ def create_app(
             template.replace("__LANG__", lang)
             .replace("__THEME__", settings.theme)
             .replace("__CONTRAST__", "high" if settings.high_contrast else "normal")
+            .replace("__ASSET_V__", ctx.asset_version)
             .replace("__TITLE__", title)
             .replace("__BODY__", body)
             .replace("__HINT__", copy["hint"])
@@ -592,21 +593,21 @@ def create_app(
 
     @app.get("/api/desktop/audio-sources", dependencies=[Depends(require_desktop_auth)])
     async def get_audio_sources() -> dict[str, list[str]]:
-        return {"sources": ctx.audio_backend.list_audio_apps()}
+        return {"sources": await asyncio.to_thread(ctx.audio_backend.list_audio_apps)}
 
     @app.get("/api/desktop/mixer", dependencies=[Depends(require_desktop_auth)])
     async def get_mixer() -> dict[str, Any]:
-        return ctx.audio_mixer.get_mixer_state()
+        return await asyncio.to_thread(ctx.audio_mixer.get_mixer_state)
 
     @app.post("/api/desktop/mixer/volume", dependencies=[Depends(require_desktop_auth)])
     async def set_mixer_volume(req: MixerVolumeRequest) -> dict[str, Any]:
-        mixer_state = ctx.audio_mixer.set_volume(req.exe, req.volume)
+        mixer_state = await asyncio.to_thread(ctx.audio_mixer.set_volume, req.exe, req.volume)
         await ctx.broadcast_mixer_state(mixer_state)
         return mixer_state
 
     @app.post("/api/desktop/mixer/mute", dependencies=[Depends(require_desktop_auth)])
     async def set_mixer_mute(req: MixerMuteRequest) -> dict[str, Any]:
-        mixer_state = ctx.audio_mixer.set_mute(req.exe, req.muted)
+        mixer_state = await asyncio.to_thread(ctx.audio_mixer.set_mute, req.exe, req.muted)
         ctx.trigger_live_refresh()
         await ctx.broadcast_mixer_state(mixer_state)
         return mixer_state
@@ -629,12 +630,12 @@ def create_app(
 
     @app.get("/api/desktop/detected-apps", dependencies=[Depends(require_desktop_auth)])
     async def get_detected_apps() -> dict[str, list[dict[str, str]]]:
-        return {"apps": detect_installed_apps()}
+        return {"apps": await asyncio.to_thread(detect_installed_apps)}
 
     @app.get("/api/desktop/obs/scenes", dependencies=[Depends(require_desktop_auth)])
     async def get_obs_scenes() -> dict[str, Any]:
         port_val, pw = ctx._get_obs_settings()
-        return ctx.obs_backend.fetch_resources(port=port_val, password=pw)
+        return await asyncio.to_thread(ctx.obs_backend.fetch_resources, port=port_val, password=pw)
 
     @app.post("/api/desktop/pairing/refresh", dependencies=[Depends(require_desktop_auth)])
     async def refresh_pairing() -> dict[str, Any]:
@@ -679,7 +680,13 @@ def create_app(
 
     @app.post("/api/desktop/pages/import", dependencies=[Depends(require_desktop_auth)])
     async def import_page(page: DeckPage) -> dict[str, Any]:
-        ctx.deck_manager.import_page(page)
+        sanitized_buttons = [
+            b.model_copy(update={"action": b.action.model_copy(update={"app_path": None})})
+            if b.action.type == "launch_app"
+            else b
+            for b in page.buttons
+        ]
+        ctx.deck_manager.import_page(page.model_copy(update={"buttons": sanitized_buttons}))
         await ctx.broadcast_state_sync()
         return ctx.desktop_state_payload()
 
@@ -748,7 +755,7 @@ def create_app(
         if btn is None:
             raise HTTPException(status_code=404, detail="Button not found")
         try:
-            result = ctx.executor.execute_tap(btn.action, owner_id="desktop_test")
+            result = await asyncio.to_thread(ctx.executor.execute_tap, btn.action, owner_id="desktop_test")
         except Exception as exc:
             return {"ok": False, "error": str(exc)}
         if btn.action.type == "obs_action" or (
@@ -835,7 +842,8 @@ def create_app(
                     await websocket.send_json({"type": "pong", "ts": msg.get("ts")})
                     continue
                 if msg_type == "get_mixer":
-                    await websocket.send_json({"type": "mixer_state", "mixer": ctx.audio_mixer.get_mixer_state()})
+                    mixer_state = await asyncio.to_thread(ctx.audio_mixer.get_mixer_state)
+                    await websocket.send_json({"type": "mixer_state", "mixer": mixer_state})
                     continue
                 if msg_type == "set_volume":
                     try:
@@ -843,13 +851,17 @@ def create_app(
                     except (TypeError, ValueError):
                         continue
                     exe = msg.get("exe")
-                    mixer_state = ctx.audio_mixer.set_volume(str(exe) if exe is not None else None, vol)
+                    mixer_state = await asyncio.to_thread(
+                        ctx.audio_mixer.set_volume, str(exe) if exe is not None else None, vol
+                    )
                     await ctx.broadcast_mixer_state(mixer_state)
                     continue
                 if msg_type == "set_mute":
                     exe = msg.get("exe")
                     muted = bool(msg.get("muted", False))
-                    mixer_state = ctx.audio_mixer.set_mute(str(exe) if exe is not None else None, muted)
+                    mixer_state = await asyncio.to_thread(
+                        ctx.audio_mixer.set_mute, str(exe) if exe is not None else None, muted
+                    )
                     ctx.trigger_live_refresh()
                     await ctx.broadcast_mixer_state(mixer_state)
                     continue
@@ -872,7 +884,9 @@ def create_app(
                         continue
                     if msg_type == "tap":
                         try:
-                            result = ctx.executor.execute_tap(btn.action, owner_id=client_id)
+                            result = await asyncio.to_thread(
+                                ctx.executor.execute_tap, btn.action, owner_id=client_id
+                            )
                             await websocket.send_json({"type": "ack", "button_id": button_id})
                             if btn.action.type == "obs_action" or (
                                 btn.action.type == "media" and btn.action.media_action == "mute"

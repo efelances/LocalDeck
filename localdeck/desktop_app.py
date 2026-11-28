@@ -93,9 +93,8 @@ def run(port: int | None = None, minimized: bool = False) -> int:
         settings = DeckManager(data_dir).get_config().settings
         preferred_port = port or settings.port
         chosen_port = pick_available_port(preferred_port)
-        host_ip = get_lan_ip()
 
-        app = create_app(data_dir=data_dir, host_ip=host_ip, port=chosen_port)
+        app = create_app(data_dir=data_dir, host_ip=None, port=chosen_port)
         config = uvicorn.Config(
             app,
             host="0.0.0.0",

@@ -84,7 +84,7 @@ class WindowWatcher:
             info = get_foreground_window_info()
             if info is not None:
                 exe_name, title, pid = info
-                if pid != self._own_pid and exe_name:
+                if pid != self._own_pid and title != "LocalDeck" and exe_name:
                     current = (exe_name, title)
                     if current != self._last_seen:
                         self._last_seen = current

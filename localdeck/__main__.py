@@ -19,7 +19,7 @@ def _run_headless(port: int | None = None) -> int:
     preferred_port = port or DeckManager(data_dir).get_config().settings.port
     chosen_port = pick_available_port(preferred_port)
     host_ip = get_lan_ip()
-    app = create_app(data_dir=data_dir, host_ip=host_ip, port=chosen_port)
+    app = create_app(data_dir=data_dir, host_ip=None, port=chosen_port)
     print(f"LocalDeck headless running at http://127.0.0.1:{chosen_port}/desktop")
     print(f"LAN address: http://{host_ip}:{chosen_port}")
     uvicorn.run(

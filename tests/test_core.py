@@ -540,3 +540,55 @@ def test_win_unblock_removes_zone_identifier(tmp_path: Path):
     assert unblock_downloaded_binaries(tmp_path) == 1
     with pytest.raises(FileNotFoundError):
         open(ads, "r", encoding="utf-8")
+
+
+def test_v012_auth_prune_and_obs_template(tmp_path: Path):
+    auth = AuthManager(tmp_path)
+    p1 = auth.create_pairing_token()
+    p2 = auth.create_pairing_token()
+    assert len(auth._pairing_tokens) == 1
+    assert p1.token != p2.token
+    assert auth.redeem_pairing_token(p1.token, user_agent="iPhone", client_ip="127.0.0.1") is None
+
+    obs_page = build_template_page("obs")
+    assert obs_page is not None
+    by_id = {b.id: b.action for b in obs_page.buttons}
+    assert by_id["obs-rec"].type == "obs_action" and by_id["obs-rec"].obs_command == "toggle_record"
+    assert by_id["obs-stream"].type == "obs_action" and by_id["obs-stream"].obs_command == "toggle_stream"
+    assert by_id["obs-replay"].type == "obs_action" and by_id["obs-replay"].obs_command == "save_replay"
+    assert by_id["obs-studio"].type == "obs_action" and by_id["obs-studio"].obs_command == "toggle_studio_mode"
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="Windows-only .lnk parser validation test")
+def test_lnk_target_and_args_validation(tmp_path: Path):
+    import subprocess
+    from localdeck.core.app_launcher import validate_lnk_file
+
+    safe_lnk = tmp_path / "safe.lnk"
+    cmd_lnk = tmp_path / "evil_cmd.lnk"
+    args_lnk = tmp_path / "evil_args.lnk"
+    ps_script = f"""
+$ws = New-Object -ComObject WScript.Shell
+$s1 = $ws.CreateShortcut('{safe_lnk}')
+$s1.TargetPath = 'C:\\Windows\\System32\\notepad.exe'
+$s1.Save()
+$s2 = $ws.CreateShortcut('{cmd_lnk}')
+$s2.TargetPath = 'C:\\Windows\\System32\\cmd.exe'
+$s2.Save()
+$s3 = $ws.CreateShortcut('{args_lnk}')
+$s3.TargetPath = 'C:\\Windows\\System32\\notepad.exe'
+$s3.Arguments = 'C:\\secret.txt'
+$s3.Save()
+"""
+    subprocess.run(
+        ["powershell", "-NoProfile", "-Command", ps_script],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    validate_lnk_file(safe_lnk)
+    with pytest.raises(ValueError, match="blocked"):
+        validate_lnk_file(cmd_lnk)
+    with pytest.raises(ValueError, match="arguments"):
+        validate_lnk_file(args_lnk)

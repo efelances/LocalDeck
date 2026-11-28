@@ -23,7 +23,6 @@ window.LocalDeckAudioViz = (() => {
 
     const bars = [];
     const current = new Array(BAR_COUNT).fill(REST_SCALE);
-    const caps = new Array(BAR_COUNT).fill(REST_SCALE);
     for (let i = 0; i < BAR_COUNT; i++) {
       const bar = document.createElement("span");
       bar.className = "audio-bar";
@@ -53,7 +52,6 @@ window.LocalDeckAudioViz = (() => {
       breatheEnergy = 0;
       for (let i = 0; i < BAR_COUNT; i++) {
         current[i] = REST_SCALE;
-        caps[i] = REST_SCALE;
         bars[i].style.transform = `scaleY(${REST_SCALE})`;
         bars[i].style.background = "";
         bars[i].style.boxShadow = "";
@@ -114,7 +112,6 @@ window.LocalDeckAudioViz = (() => {
             `linear-gradient(to top, hsla(${hue}, 88%, 56%, 0.84) 0%, hsla(${(hue + 28) % 360}, 86%, 60%, 0.50) 50%, hsla(${(hue + 52) % 360}, 84%, 64%, 0) 100%)`;
           bars[i].style.boxShadow = "";
         } else if (mode === "neon") {
-          caps[i] = Math.max(current[i], caps[i] - 0.012);
           const hue = NEON_HUES[i % NEON_HUES.length];
           bars[i].style.background =
             `linear-gradient(to top, hsla(${hue}, 96%, 58%, 0.88) 0%, hsla(${hue}, 92%, 62%, 0.52) 52%, hsla(${hue}, 90%, 66%, 0) 100%)`;

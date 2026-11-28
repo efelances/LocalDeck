@@ -9,11 +9,29 @@
   let reconnectMs = 500;
   let latencyMs = null;
   let wakeLock = null;
+  let wakeLockWanted = false;
   let draggingTarget = null;
   const activeHolds = new Map();
 
   const $ = (id) => document.getElementById(id);
   const audioViz = window.LocalDeckAudioViz.create($("mobileAudioViz"));
+
+  function escapeHtml(value) {
+    return String(value ?? "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+  }
+
+  function releaseActiveHolds() {
+    if (!activeHolds.size) return;
+    activeHolds.forEach((held) => {
+      sendWs({ type: "hold_end", page_id: held.page_id, button_id: held.button_id });
+    });
+    activeHolds.clear();
+  }
 
   function lang() {
     return (deckState && deckState.settings && deckState.settings.language) || "tr";
@@ -61,7 +79,7 @@
 
   function buildWidgetInner(btn, l) {
     const kind = btn.action?.widget_kind || "clock";
-    const lbl = resolveLocalized(btn, "label", l) || t(l, `widget_${kind}`);
+    const lbl = escapeHtml(resolveLocalized(btn, "label", l) || t(l, `widget_${kind}`));
     const ets2 = liveState.ets2 || {};
     const sys = liveState.system || {};
 
@@ -88,9 +106,9 @@
     }
     if (kind === "ets2_speed") {
       const val = ets2.connected ? `${ets2.speed_kmh || 0}` : "—";
-      const sub = ets2.connected
+      const sub = escapeHtml(ets2.connected
         ? `km/h · ${ets2.gear || "N"}${ets2.cruise_kmh ? ` · CC ${ets2.cruise_kmh}` : ""}${ets2.park_brake ? " · (P)" : ""}`
-        : t(l, "ets2Offline");
+        : t(l, "ets2Offline"));
       return `
         <div class="widget-tile" data-widget-kind="ets2_speed">
           <div class="widget-kicker">${lbl}</div>
@@ -100,7 +118,7 @@
       `;
     }
     const fuel = ets2.connected ? `${ets2.fuel_pct || 0}%` : "—";
-    const rpmSub = ets2.connected ? `${ets2.rpm || 0} RPM` : t(l, "ets2Offline");
+    const rpmSub = escapeHtml(ets2.connected ? `${ets2.rpm || 0} RPM` : t(l, "ets2Offline"));
     const barW = ets2.connected ? (ets2.fuel_pct || 0) : 0;
     return `
       <div class="widget-tile" data-widget-kind="ets2_fuel">
@@ -270,6 +288,7 @@
 
   function render() {
     if (!deckState) return;
+    releaseActiveHolds();
     const l = lang();
     document.documentElement.lang = l;
     document.documentElement.setAttribute("data-theme", deckState.settings.theme || "dark");
@@ -393,11 +412,22 @@
     if (!("wakeLock" in navigator)) return;
     try {
       wakeLock = await navigator.wakeLock.request("screen");
+      wakeLockWanted = true;
       $("wakeLockBtn").classList.add("active");
       wakeLock.addEventListener("release", () => {
-        $("wakeLockBtn").classList.remove("active");
+        wakeLock = null;
+        if (!wakeLockWanted) $("wakeLockBtn").classList.remove("active");
       });
     } catch (_) {}
+  }
+
+  async function releaseWakeLock() {
+    wakeLockWanted = false;
+    $("wakeLockBtn").classList.remove("active");
+    if (wakeLock) {
+      try { await wakeLock.release(); } catch (_) {}
+      wakeLock = null;
+    }
   }
 
   function connect() {
@@ -468,7 +498,13 @@
     }
   };
 
-  $("wakeLockBtn").onclick = () => requestWakeLock();
+  $("wakeLockBtn").onclick = () => {
+    if (wakeLockWanted) {
+      releaseWakeLock();
+    } else {
+      requestWakeLock();
+    }
+  };
   $("fullscreenBtn").onclick = () => {
     if (!document.fullscreenElement) {
       document.documentElement.requestFullscreen?.().catch(() => {});
@@ -478,7 +514,7 @@
   };
 
   document.addEventListener("visibilitychange", () => {
-    if (document.visibilityState === "visible" && wakeLock !== null) {
+    if (document.visibilityState === "visible" && wakeLockWanted && !wakeLock) {
       requestWakeLock();
     }
   });
